@@ -1,0 +1,24 @@
+{
+  "name": "chrome-function-profiler-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "chrome-function-profiler": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "chrome-remote-interface": "^0.33.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
