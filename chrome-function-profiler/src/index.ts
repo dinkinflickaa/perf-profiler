@@ -38,21 +38,27 @@ server.tool(
   {
     port: z.number().default(9222).describe('CDP debugging port'),
     host: z.string().default('127.0.0.1').describe('CDP host address'),
+    target: z.string().optional().describe('Target page ID or URL fragment to connect to (e.g. "localhost:5173"). If omitted, connects to the first available page.'),
   },
-  async ({ port, host }) => {
+  async ({ port, host, target }) => {
     try {
       if (connection) {
         await connection.close();
         workerManager?.clear();
       }
 
-      connection = await createConnection({ port, host });
+      connection = await createConnection({ port, host, target });
       workerManager = new WorkerManager(connection.client);
       await workerManager.start();
 
       const targets = await listCDPTargets({ port, host });
       const pages = targets.filter(t => t.type === 'page');
       const workers = workerManager.getWorkers();
+
+      // Detect if connected to a blank/newtab page (common when another DevTools client manages the tab)
+      const connectedPage = pages.find(p => p.id === targets[0]?.id) ?? pages[0];
+      const connectedUrl = connectedPage?.url ?? '';
+      const isBlankPage = !connectedUrl || connectedUrl === 'about:blank' || connectedUrl.startsWith('chrome://');
 
       const lines: string[] = [
         `Connected to Chrome at ${host}:${port}`,
@@ -63,6 +69,12 @@ server.tool(
         `Discovered workers (${workers.length}):`,
         ...workers.map(w => `  - [${w.type}] ${w.url} (session: ${w.sessionId.slice(0, 8)}...)`),
       ];
+
+      if (isBlankPage && !target) {
+        lines.push('');
+        lines.push('WARNING: Connected to a blank or chrome:// page. The profiler may not reach your app.');
+        lines.push('Ensure your app is loaded in Chrome, then reconnect with: connect({ target: "localhost:YOUR_PORT" })');
+      }
 
       return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
     } catch (err: unknown) {

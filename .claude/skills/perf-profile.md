@@ -13,7 +13,7 @@ These are the ONLY tools you may call. Do not reference or call any other tool n
 
 | Tool | Purpose |
 |------|---------|
-| `connect` | Connect to Chrome via CDP |
+| `connect` | Connect to Chrome via CDP (use `target` param to specify app URL) |
 | `disconnect` | Clean up and disconnect |
 | `list_targets` | Show pages and workers |
 | `profile_scenario` | Single-capture profile |
@@ -21,15 +21,24 @@ These are the ONLY tools you may call. Do not reference or call any other tool n
 | `stop_profiling_session` | Stop session, get summary |
 | `compare_profiles` | Diff two .cpuprofile files |
 
+## Prerequisites
+
+- Chrome must be running with `--remote-debugging-port=9222`
+- The user's app must already be loaded in Chrome (navigate to it before profiling)
+- The user drives all interactions in Chrome — you arm the profiler and present results
+
 ## Workflow
 
 Follow these steps in order. Do NOT skip steps. Ask the user at each decision point.
 
 ### Step 1: Connection
 
-Check if already connected to Chrome. If not:
-- Call `connect` with default port 9222
+Ask the user: "What URL is your app running at?" (e.g., `localhost:5173`)
+
+Connect to Chrome, targeting their app's page:
+- Call `connect` with `target: "<user's app URL fragment>"` (e.g., `target: "localhost:5173"`)
 - If connection fails, tell the user to launch Chrome with `--remote-debugging-port=9222`
+- If the connect response shows a WARNING about blank/chrome:// pages, ask the user to navigate Chrome to their app first, then reconnect with the `target` parameter
 - Call `list_targets` to show available targets (main thread, workers)
 
 ### Step 2: Scenario Identification
