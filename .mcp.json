@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "chrome-profiler": {
+      "command": "node",
+      "args": ["./chrome-function-profiler/build/index.js"]
+    }
+  }
+}
