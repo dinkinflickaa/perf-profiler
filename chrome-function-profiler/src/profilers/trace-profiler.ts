@@ -6,6 +6,8 @@ import { generateTracingMarkPatch, generateRestorePatch, generateAutoLabelQuery 
 import { NavigationHandler } from '../instrumentation/navigation-handler.js';
 import { extractDuration, extractCpuProfiles } from '../analysis/trace-parser.js';
 
+const MAX_PENDING_EVENTS = 500_000;
+
 const TRACE_CATEGORIES = [
   'blink.user_timing',
   'devtools.timeline',
@@ -109,7 +111,12 @@ export class TracingProfiler {
     // Listen for tracing data
     this.dataCollectedHandler = (event: any) => {
       if (event.value) {
-        this.pendingEvents.push(...event.value);
+        if (this.pendingEvents.length + event.value.length > MAX_PENDING_EVENTS) {
+          const remaining = MAX_PENDING_EVENTS - this.pendingEvents.length;
+          if (remaining > 0) this.pendingEvents.push(...event.value.slice(0, remaining));
+        } else {
+          this.pendingEvents.push(...event.value);
+        }
       }
     };
     this.client.on('Tracing.dataCollected' as any, this.dataCollectedHandler);

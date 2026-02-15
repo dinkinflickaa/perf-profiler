@@ -1,3 +1,7 @@
+function escapeForJS(str: string): string {
+  return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+}
+
 /**
  * Generate JavaScript code that patches performance.mark to trigger
  * console.profile()/console.profileEnd() on matching mark names.
@@ -9,8 +13,8 @@ export function generateMarkPatch(
   endMark: string,
   maxCaptures: number
 ): string {
-  const escapedStart = startMark.replace(/'/g, "\\'");
-  const escapedEnd = endMark.replace(/'/g, "\\'");
+  const escapedStart = escapeForJS(startMark);
+  const escapedEnd = escapeForJS(endMark);
 
   return `(function() {
   var startMark = '${escapedStart}';
@@ -61,8 +65,8 @@ export function generateTracingMarkPatch(
   endMark: string,
   maxCaptures: number
 ): string {
-  const escapedStart = startMark.replace(/'/g, "\\'");
-  const escapedEnd = endMark.replace(/'/g, "\\'");
+  const escapedStart = escapeForJS(startMark);
+  const escapedEnd = escapeForJS(endMark);
 
   return `(function() {
   var startMark = '${escapedStart}';

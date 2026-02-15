@@ -4,22 +4,26 @@ import type { WorkerSession } from '../types.js';
 export class WorkerManager {
   private workers = new Map<string, WorkerSession>();
   private client: CDP.Client;
+  private attachHandler: ((event: any) => void) | null = null;
+  private detachHandler: ((event: any) => void) | null = null;
 
   constructor(client: CDP.Client) {
     this.client = client;
   }
 
   async start(): Promise<void> {
-    this.client.on('Target.attachedToTarget' as any, (event: any) => {
+    this.attachHandler = (event: any) => {
       const { sessionId, targetInfo } = event;
       if (targetInfo.type === 'worker' || targetInfo.type === 'service_worker') {
         this.workers.set(sessionId, { sessionId, url: targetInfo.url, type: targetInfo.type });
       }
-    });
+    };
+    this.client.on('Target.attachedToTarget' as any, this.attachHandler);
 
-    this.client.on('Target.detachedFromTarget' as any, (event: any) => {
+    this.detachHandler = (event: any) => {
       this.workers.delete(event.sessionId);
-    });
+    };
+    this.client.on('Target.detachedFromTarget' as any, this.detachHandler);
 
     await (this.client as any).send('Target.setAutoAttach', {
       autoAttach: true,
@@ -42,5 +46,15 @@ export class WorkerManager {
     throw new Error(`No worker found matching "${urlFragment}".`);
   }
 
-  clear(): void { this.workers.clear(); }
+  clear(): void {
+    if (this.attachHandler) {
+      this.client.removeListener('Target.attachedToTarget' as any, this.attachHandler);
+      this.attachHandler = null;
+    }
+    if (this.detachHandler) {
+      this.client.removeListener('Target.detachedFromTarget' as any, this.detachHandler);
+      this.detachHandler = null;
+    }
+    this.workers.clear();
+  }
 }
