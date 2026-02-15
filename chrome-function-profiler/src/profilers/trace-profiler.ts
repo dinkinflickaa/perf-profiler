@@ -205,7 +205,7 @@ export class TracingProfiler {
     } else if (payload.startsWith('end:')) {
       const parts = payload.slice(4).split(':');
       const index = parseInt(parts[0], 10);
-      const overlapCount = parts[1] ? parseInt(parts[1], 10) : 1;
+      const overlapCount = parts[1] ? parseInt(parts[1], 10) : 0;
       this.endCapture(index, overlapCount);
     }
   }
@@ -213,7 +213,7 @@ export class TracingProfiler {
   private async startCapture(index: number): Promise<void> {
     if (this.tracingActive) {
       // Queue this capture — previous trace still flushing
-      this.captureQueue.push({ index, overlapCount: 1 });
+      this.captureQueue.push({ index, overlapCount: 0 });
       return;
     }
 

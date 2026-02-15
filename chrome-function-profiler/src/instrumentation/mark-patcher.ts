@@ -43,8 +43,9 @@ export function generateMarkPatch(
     if (name.includes(endMark) && depth > 0) {
       depth--;
       if (depth === 0) {
+        var overlaps = maxDepthThisCapture - 1;
         var title = 'capture-' + captureIndex +
-          (maxDepthThisCapture > 1 ? ':overlap-' + maxDepthThisCapture : '');
+          (overlaps > 0 ? ':overlap-' + overlaps : '');
         maxDepthThisCapture = 0;
         console.profileEnd(title);
       }
@@ -95,7 +96,7 @@ export function generateTracingMarkPatch(
     if (name.includes(endMark) && depth > 0) {
       depth--;
       if (depth === 0) {
-        var overlap = maxDepthThisCapture;
+        var overlap = maxDepthThisCapture - 1;
         maxDepthThisCapture = 0;
         try { __cfp_signal('end:' + captureIndex + ':' + overlap); } catch(e) {}
       }
@@ -117,10 +118,10 @@ export function generateRestorePatch(): string {
 
 export function parseCaptureTitle(title: string): { captureIndex: number; overlapCount: number } {
   const match = title.match(/^capture-(\d+)(?::overlap-(\d+))?$/);
-  if (!match) return { captureIndex: 0, overlapCount: 1 };
+  if (!match) return { captureIndex: 0, overlapCount: 0 };
   return {
     captureIndex: parseInt(match[1], 10),
-    overlapCount: match[2] ? parseInt(match[2], 10) : 1,
+    overlapCount: match[2] ? parseInt(match[2], 10) : 0,
   };
 }
 

@@ -47,10 +47,10 @@ describe('generateRestorePatch', () => {
 });
 
 describe('parseCaptureTitle', () => {
-  it('parses simple capture title', () => {
+  it('parses simple capture title with no overlaps', () => {
     const result = parseCaptureTitle('capture-3');
     expect(result.captureIndex).toBe(3);
-    expect(result.overlapCount).toBe(1);
+    expect(result.overlapCount).toBe(0);
   });
 
   it('parses capture title with overlap', () => {
@@ -62,6 +62,6 @@ describe('parseCaptureTitle', () => {
   it('handles unknown format gracefully', () => {
     const result = parseCaptureTitle('unknown');
     expect(result.captureIndex).toBe(0);
-    expect(result.overlapCount).toBe(1);
+    expect(result.overlapCount).toBe(0);
   });
 });
