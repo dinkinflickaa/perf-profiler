@@ -23,7 +23,7 @@ These are the ONLY tools you may call. Do not reference or call any other tool n
 | `profile_scenario` | Single-capture profile (main or worker only) |
 | `start_profiling_session` | Start multi-capture session (main, worker, or full) |
 | `stop_profiling_session` | Stop session, get summary |
-| `compare_profiles` | Diff two .cpuprofile files |
+| `compare_profiles` | Diff two .cpuprofile or .trace.json files |
 
 ## Quick Reference
 
@@ -175,7 +175,7 @@ Present the results clearly:
 3. **Outliers**: Flag any captures > 2 stddev from mean with their labels
 4. **File locations**: Where the output files are saved
    - For `.cpuprofile` files: "You can drag any `.cpuprofile` file into Chrome DevTools Performance panel for a full flame chart view."
-   - For full mode `.trace.json` files: "You can open `.trace.json` files in `chrome://tracing` or the DevTools Performance panel."
+   - For full mode: "You can open `.trace.json` files in `chrome://tracing` or the DevTools Performance panel."
 
 Format the summary as a readable table, not raw JSON.
 
@@ -188,7 +188,8 @@ Note: For single captures via `profile_scenario`, the tool returns duration, lab
 After presenting results, offer these options:
 
 1. **Compare profiles**: "Want me to compare the slowest capture against the fastest to identify which functions are responsible?"
-   - If yes: call `compare_profiles` with the two `.cpuprofile` file paths (works for both specific-thread and full mode's extracted profiles)
+   - If yes for **specific-thread mode**: call `compare_profiles` with the two `.cpuprofile` file paths
+   - If yes for **full mode**: first discover thread names by running `jq '[.[] | select(.name == "thread_name")] | map(.args.name) | unique' <trace-file>` on one of the captures, then present the thread names to the user and ask which one to compare, then call `compare_profiles` with the two `.trace.json` file paths and the `thread` parameter
    - Present the diff as a table: function name, file, line, hits in A, hits in B, delta
    - Focus on the top 5 differences — don't dump 20 rows
 

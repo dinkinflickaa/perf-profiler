@@ -67,36 +67,16 @@ export class ProfilingSession {
         onCaptureStart: (idx) => {
           this.state.captureIndex = idx;
         },
-        onCaptureEnd: async (idx, traceEvents, duration, cpuProfiles, label, overlapCount) => {
+        onCaptureEnd: async (idx, traceEvents, duration, _cpuProfiles, label, overlapCount) => {
           const traceFilename = `invocation-${idx}.trace.json`;
           await saveTrace(traceEvents, join(outputDir, traceFilename));
-
-          const files: CaptureInfo['files'] = { trace: traceFilename };
-
-          // Extract and save per-thread CPU profiles
-          const threads = [...cpuProfiles.entries()];
-          if (threads.length > 0) {
-            // Save first thread as the main cpu profile
-            const [, mainProfile] = threads[0];
-            const cpuFilename = `invocation-${idx}.cpuprofile`;
-            await saveProfile(mainProfile, join(outputDir, cpuFilename));
-            files.cpu = cpuFilename;
-
-            // Save additional threads as worker cpu profiles
-            if (threads.length > 1) {
-              const [, workerProfile] = threads[1];
-              const workerFilename = `invocation-${idx}.worker.cpuprofile`;
-              await saveProfile(workerProfile, join(outputDir, workerFilename));
-              files.workerCpu = workerFilename;
-            }
-          }
 
           const capture: CaptureInfo = {
             index: idx,
             label,
             duration,
             overlappingInvocations: overlapCount,
-            files,
+            files: { trace: traceFilename },
           };
           this.state.captures.push(capture);
         },

@@ -9,7 +9,7 @@ import { WorkerManager } from './cdp/worker-manager.js';
 import { ProfilingSession } from './session/profiling-session.js';
 import { compareProfiles } from './analysis/profile-comparator.js';
 import { topFunctions, profileDurationMs } from './analysis/profile-parser.js';
-import { loadProfile, saveProfile } from './utils/file-output.js';
+import { loadProfileAuto, saveProfile } from './utils/file-output.js';
 import { computeStats } from './utils/stats.js';
 
 // ---------------------------------------------------------------------------
@@ -298,7 +298,7 @@ server.tool(
         `  Output: ${outputDir}`,
         '',
         'Trigger the scenario in Chrome. Each start/end mark pair will be captured.',
-        ...(target === 'full' ? ['Each capture saves a .trace.json (all threads) + extracted .cpuprofile files.'] : []),
+        ...(target === 'full' ? ['Each capture saves a .trace.json file containing all thread data.'] : []),
         'Call stop_profiling_session when done.',
       ];
 
@@ -366,7 +366,7 @@ server.tool(
         if (hasTraceFiles) {
           lines.push('');
           lines.push('Trace files (.trace.json) are openable in chrome://tracing or DevTools Performance panel.');
-          lines.push('Extracted .cpuprofile files can be used with compare_profiles.');
+          lines.push('Use compare_profiles with the .trace.json files to compare captures.');
         }
       } else {
         lines.push('No captures were recorded during this session.');
@@ -389,15 +389,16 @@ server.tool(
   'compare_profiles',
   'Compare two CPU profiles and show the functions with the largest hit-count differences.',
   {
-    profileA: z.string().describe('File path to the first .cpuprofile'),
-    profileB: z.string().describe('File path to the second .cpuprofile'),
+    profileA: z.string().describe('File path to the first .cpuprofile or .trace.json'),
+    profileB: z.string().describe('File path to the second .cpuprofile or .trace.json'),
     topN: z.number().default(20).describe('Number of top differing functions to show'),
+    thread: z.string().optional().describe('Thread name to extract from trace (substring match). Required when trace has multiple profiled threads.'),
   },
-  async ({ profileA, profileB, topN }) => {
+  async ({ profileA, profileB, topN, thread }) => {
     try {
       const [profA, profB] = await Promise.all([
-        loadProfile(profileA),
-        loadProfile(profileB),
+        loadProfileAuto(profileA, thread),
+        loadProfileAuto(profileB, thread),
       ]);
 
       const diffs = compareProfiles(profA, profB, topN);

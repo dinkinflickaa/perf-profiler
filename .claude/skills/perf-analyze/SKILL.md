@@ -68,7 +68,7 @@ jq '[.nodes[]
 
 ### Quick diff of top functions between two profiles
 
-For ad-hoc comparison without the `compare_profiles` MCP tool.
+For ad-hoc comparison without the `compare_profiles` MCP tool. Note: `compare_profiles` now also accepts `.trace.json` files directly with an optional `thread` parameter.
 
 ```bash
 diff <(jq '[.nodes[]
@@ -158,4 +158,4 @@ jq '[.[] | select(.tid == TARGET_TID and (.name == "thread_name" | not))]
 - When comparing profiles, focus on the top 5-10 differences — don't dump everything.
 - If the user asks about a specific function, filter by its name or source file rather than scanning the full profile.
 - If a query returns empty results, suggest checking the file type (`.cpuprofile` vs `.trace.json`) — the schemas are completely different.
-- Remind the user they can open `.cpuprofile` files in Chrome DevTools Performance panel and `.trace.json` files in `chrome://tracing` for visual flame charts.
+- Remind the user they can open `.cpuprofile` files in Chrome DevTools Performance panel and `.trace.json` files in `chrome://tracing` for visual flame charts. Both file types can be compared directly with `compare_profiles` (use the `thread` parameter for `.trace.json` files with multiple threads).
