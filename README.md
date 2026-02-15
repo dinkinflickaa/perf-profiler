@@ -127,7 +127,7 @@ stop_profiling_session()                    # Get summary with stats & outliers
 | `profile_scenario` | Capture a single CPU profile between a start mark and end mark. |
 | `start_profiling_session` | Start a multi-capture session. Profiles are captured every time the scenario fires. |
 | `stop_profiling_session` | Stop the active session and return a summary with stats and outliers. |
-| `compare_profiles` | Diff two `.cpuprofile` files and show the functions with the largest hit-count differences. |
+| `compare_profiles` | Diff two `.cpuprofile` or `.trace.json` files and show the functions with the largest hit-count differences. |
 
 ### Tool Parameters
 
@@ -164,9 +164,10 @@ stop_profiling_session()                    # Get summary with stats & outliers
 **`compare_profiles`**
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `profileA` | required | Path to first `.cpuprofile` |
-| `profileB` | required | Path to second `.cpuprofile` |
+| `profileA` | required | Path to first `.cpuprofile` or `.trace.json` |
+| `profileB` | required | Path to second `.cpuprofile` or `.trace.json` |
 | `topN` | `20` | Number of top differing functions to show |
+| `thread` | — | Thread name to extract from trace (substring match). Use when comparing `.trace.json` files with multiple threads. |
 
 ## Capture Modes
 
@@ -185,11 +186,9 @@ Captures a profile every time the scenario fires. When stopped, returns:
 ### Full Trace Mode (`start_profiling_session` with `target: "full"`)
 
 Captures a cross-thread trace (main + workers) every time the scenario fires. Produces:
-- `.trace.json` — full trace, openable in `chrome://tracing` or DevTools Performance panel
-- `.cpuprofile` — extracted CPU profile from the main thread
-- `.worker.cpuprofile` — extracted CPU profile from each worker
+- `.trace.json` — full trace containing all thread data, openable in `chrome://tracing` or DevTools Performance panel
 
-Use full mode when you need to understand how work flows across threads.
+Use full mode when you need to understand how work flows across threads. Use `compare_profiles` with the `.trace.json` files and the `thread` parameter to compare specific threads.
 
 ## Demo App
 
