@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { ProcessedMessage, Channel } from '../types';
 
 const worker = new Worker(
@@ -10,10 +10,12 @@ export function useChannelData() {
   const [messages, setMessages] = useState<ProcessedMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastDuration, setLastDuration] = useState<number | null>(null);
+  const currentChannel = useRef<Channel | null>(null);
 
   const loadChannel = useCallback((channel: Channel) => {
     performance.mark('channel-switch-start');
     setLoading(true);
+    currentChannel.current = channel;
 
     worker.postMessage({
       channelId: channel.id,
@@ -23,6 +25,8 @@ export function useChannelData() {
 
     return new Promise<void>((resolve) => {
       const handler = (event: MessageEvent) => {
+        // Ignore preview/send responses
+        if (event.data.type === 'preview' || event.data.type === 'send') return;
         if (event.data.channelId !== channel.id) return;
         worker.removeEventListener('message', handler);
 
@@ -49,7 +53,22 @@ export function useChannelData() {
     });
   }, []);
 
-  return { messages, loading, loadChannel, lastDuration };
+  const handleSent = useCallback(() => {
+    if (currentChannel.current) {
+      loadChannel(currentChannel.current);
+    }
+  }, [loadChannel]);
+
+  return {
+    messages,
+    setMessages,
+    loading,
+    loadChannel,
+    lastDuration,
+    worker,
+    currentChannel,
+    handleSent,
+  };
 }
 
 // INEFFICIENCY 16: Redundant template pre-computation
