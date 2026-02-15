@@ -246,7 +246,9 @@ perf-analysis/
 │   │   ├── hooks/useChannelData.ts # Main thread processing (with inefficiencies)
 │   │   └── worker/                 # Web worker pipeline (with inefficiencies)
 │   └── package.json
-├── .claude/skills/perf-profile/    # /perf-profile skill for Claude Code
+├── .claude/skills/
+│   ├── perf-profile/              # /perf-profile — orchestrate profiling sessions
+│   └── perf-analyze/              # /perf-analyze — analyze captured profiles with jq
 ├── .mcp.json                       # MCP server registration
 └── profiles/                       # Default output directory for captured profiles
 ```
