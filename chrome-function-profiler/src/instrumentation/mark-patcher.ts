@@ -25,7 +25,7 @@ export function generateMarkPatch(
   performance.__originalMark = origMark;
 
   performance.mark = function(name, options) {
-    if (name === startMark && captureIndex < maxCaptures) {
+    if (name.includes(startMark) && captureIndex < maxCaptures) {
       depth++;
       if (depth > maxDepthThisCapture) maxDepthThisCapture = depth;
       if (depth === 1) {
@@ -36,7 +36,7 @@ export function generateMarkPatch(
 
     var result = origMark(name, options);
 
-    if (name === endMark && depth > 0) {
+    if (name.includes(endMark) && depth > 0) {
       depth--;
       if (depth === 0) {
         var title = 'capture-' + captureIndex +
@@ -77,7 +77,7 @@ export function generateTracingMarkPatch(
   performance.__originalMark = origMark;
 
   performance.mark = function(name, options) {
-    if (name === startMark && captureIndex < maxCaptures) {
+    if (name.includes(startMark) && captureIndex < maxCaptures) {
       depth++;
       if (depth > maxDepthThisCapture) maxDepthThisCapture = depth;
       if (depth === 1) {
@@ -88,7 +88,7 @@ export function generateTracingMarkPatch(
 
     var result = origMark(name, options);
 
-    if (name === endMark && depth > 0) {
+    if (name.includes(endMark) && depth > 0) {
       depth--;
       if (depth === 0) {
         var overlap = maxDepthThisCapture;

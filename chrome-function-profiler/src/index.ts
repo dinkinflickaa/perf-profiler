@@ -249,7 +249,7 @@ server.tool(
     target: z.enum(['main', 'worker', 'full']).default('main').describe('Profile main thread, a worker, or all threads (full trace)'),
     workerUrl: z.string().optional().describe('URL fragment to identify the target worker (not needed for full mode)'),
     samplingInterval: z.number().default(200).describe('CPU profiler sampling interval in microseconds (not used in full mode)'),
-    outputDir: z.string().default('./profiles/session').describe('Directory for output files'),
+    outputDir: z.string().optional().describe('Directory for output files. Defaults to ./profiles/<startMark>'),
     maxCaptures: z.number().default(50).describe('Maximum number of captures'),
     sessionTimeoutMs: z.number().default(300000).describe('Session timeout in milliseconds'),
   },

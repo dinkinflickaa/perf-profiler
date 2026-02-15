@@ -25,11 +25,14 @@ export class ProfilingSession {
   private options: ProfilingSessionOptions;
   private profiler: CpuProfiler | TracingProfiler | null = null;
   private state: SessionState;
+  private outputDir: string;
   private timeoutTimer: ReturnType<typeof setTimeout> | null = null;
   private onTimeout?: () => void;
 
   constructor(options: ProfilingSessionOptions) {
     this.options = options;
+    const scenarioName = options.startMark.replace(/[^a-zA-Z0-9_-]/g, '_');
+    this.outputDir = options.outputDir ?? `./profiles/${scenarioName}`;
     this.state = {
       id: `sess_${Date.now()}`,
       startMark: options.startMark,
@@ -52,7 +55,7 @@ export class ProfilingSession {
   }
 
   async start(): Promise<string> {
-    const outputDir = this.options.outputDir ?? './profiles/session';
+    const outputDir = this.outputDir;
 
     if (this.state.target === 'full') {
       this.profiler = new TracingProfiler({
@@ -157,7 +160,7 @@ export class ProfilingSession {
 
     this.state.active = false;
     const summary = this.generateSummary();
-    const outputDir = this.options.outputDir ?? './profiles/session';
+    const outputDir = this.outputDir;
     await saveSummary(summary, outputDir);
     return summary;
   }
