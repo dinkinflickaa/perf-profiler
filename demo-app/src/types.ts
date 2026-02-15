@@ -29,3 +29,34 @@ export interface ProcessedMessage {
   reactionSummary: { emoji: string; count: number; names: string[] }[];
   reactions?: { emoji: string; userIds: string[] }[];
 }
+
+export type Theme = 'dark' | 'light';
+export type Density = 'compact' | 'comfortable' | 'spacious';
+
+export interface ThemeContextValue {
+  theme: Theme;
+  density: Density;
+  toggleTheme: () => void;
+  setDensity: (d: Density) => void;
+}
+
+export interface SearchResult {
+  messages: ProcessedMessage[];
+  highlightedHtml: Map<string, string>;
+  count: number;
+}
+
+export interface WorkerRequest {
+  type?: 'channel' | 'preview' | 'send';
+  channelId?: string;
+  messageCount?: number;
+  hasThreads?: boolean;
+  text?: string;
+}
+
+export interface WorkerResponse {
+  type?: 'channel' | 'preview' | 'send';
+  channelId?: string;
+  messages?: ProcessedMessage[];
+  html?: string;
+}
