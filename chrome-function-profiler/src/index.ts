@@ -32,13 +32,15 @@ const server = new McpServer(
 // Tool: connect
 // ---------------------------------------------------------------------------
 
-server.tool(
+server.registerTool(
   'connect',
-  'Connect to a Chrome instance via the Chrome DevTools Protocol.',
   {
-    port: z.number().default(9222).describe('CDP debugging port'),
-    host: z.string().default('127.0.0.1').describe('CDP host address'),
-    target: z.string().optional().describe('Target page ID or URL fragment to connect to (e.g. "localhost:5173"). If omitted, connects to the first available page.'),
+    description: 'Connect to a Chrome instance via the Chrome DevTools Protocol.',
+    inputSchema: {
+      port: z.number().default(9222).describe('CDP debugging port'),
+      host: z.string().default('127.0.0.1').describe('CDP host address'),
+      target: z.string().optional().describe('Target page ID or URL fragment to connect to (e.g. "localhost:5173"). If omitted, connects to the first available page.'),
+    },
   },
   async ({ port, host, target }) => {
     try {
@@ -88,9 +90,11 @@ server.tool(
 // Tool: disconnect
 // ---------------------------------------------------------------------------
 
-server.tool(
+server.registerTool(
   'disconnect',
-  'Disconnect from the current Chrome instance and clean up all state.',
+  {
+    description: 'Disconnect from the current Chrome instance and clean up all state.',
+  },
   async () => {
     try {
       if (activeSession) {
@@ -117,9 +121,11 @@ server.tool(
 // Tool: list_targets
 // ---------------------------------------------------------------------------
 
-server.tool(
+server.registerTool(
   'list_targets',
-  'List available page targets and discovered workers in the connected Chrome instance.',
+  {
+    description: 'List available page targets and discovered workers in the connected Chrome instance.',
+  },
   async () => {
     try {
       if (!connection || !workerManager) {
@@ -150,17 +156,19 @@ server.tool(
 // Tool: profile_scenario
 // ---------------------------------------------------------------------------
 
-server.tool(
+server.registerTool(
   'profile_scenario',
-  'Profile a single scenario: captures one CPU profile between a startMark and endMark.',
   {
-    startMark: z.string().describe('performance.mark() name that signals the start of the scenario'),
-    endMark: z.string().describe('performance.mark() name that signals the end of the scenario'),
-    target: z.enum(['main', 'worker']).default('main').describe('Profile main thread or a worker'),
-    workerUrl: z.string().optional().describe('URL fragment to identify the target worker'),
-    samplingInterval: z.number().default(200).describe('CPU profiler sampling interval in microseconds'),
-    output: z.string().default('./profiles/profile.cpuprofile').describe('Output file path'),
-    timeoutMs: z.number().default(30000).describe('Timeout in milliseconds to wait for a capture'),
+    description: 'Profile a single scenario: captures one CPU profile between a startMark and endMark.',
+    inputSchema: {
+      startMark: z.string().describe('performance.mark() name that signals the start of the scenario'),
+      endMark: z.string().describe('performance.mark() name that signals the end of the scenario'),
+      target: z.enum(['main', 'worker']).default('main').describe('Profile main thread or a worker'),
+      workerUrl: z.string().optional().describe('URL fragment to identify the target worker'),
+      samplingInterval: z.number().default(200).describe('CPU profiler sampling interval in microseconds'),
+      output: z.string().default('./profiles/profile.cpuprofile').describe('Output file path'),
+      timeoutMs: z.number().default(30000).describe('Timeout in milliseconds to wait for a capture'),
+    },
   },
   async ({ startMark, endMark, target, workerUrl, samplingInterval, output, timeoutMs }) => {
     try {
@@ -240,18 +248,20 @@ server.tool(
 // Tool: start_profiling_session
 // ---------------------------------------------------------------------------
 
-server.tool(
+server.registerTool(
   'start_profiling_session',
-  'Start a multi-capture profiling session. Captures continue until stop_profiling_session is called or limits are reached.',
   {
-    startMark: z.string().describe('performance.mark() name that signals the start of each capture'),
-    endMark: z.string().describe('performance.mark() name that signals the end of each capture'),
-    target: z.enum(['main', 'worker', 'full']).default('main').describe('Profile main thread, a worker, or all threads (full trace)'),
-    workerUrl: z.string().optional().describe('URL fragment to identify the target worker (not needed for full mode)'),
-    samplingInterval: z.number().default(200).describe('CPU profiler sampling interval in microseconds (not used in full mode)'),
-    outputDir: z.string().optional().describe('Directory for output files. Defaults to ./profiles/<startMark>'),
-    maxCaptures: z.number().default(50).describe('Maximum number of captures'),
-    sessionTimeoutMs: z.number().default(300000).describe('Session timeout in milliseconds'),
+    description: 'Start a multi-capture profiling session. Captures continue until stop_profiling_session is called or limits are reached.',
+    inputSchema: {
+      startMark: z.string().describe('performance.mark() name that signals the start of each capture'),
+      endMark: z.string().describe('performance.mark() name that signals the end of each capture'),
+      target: z.enum(['main', 'worker', 'full']).default('main').describe('Profile main thread, a worker, or all threads (full trace)'),
+      workerUrl: z.string().optional().describe('URL fragment to identify the target worker (not needed for full mode)'),
+      samplingInterval: z.number().default(200).describe('CPU profiler sampling interval in microseconds (not used in full mode)'),
+      outputDir: z.string().optional().describe('Directory for output files. Defaults to ./profiles/<startMark>'),
+      maxCaptures: z.number().default(50).describe('Maximum number of captures'),
+      sessionTimeoutMs: z.number().default(300000).describe('Session timeout in milliseconds'),
+    },
   },
   async ({ startMark, endMark, target, workerUrl, samplingInterval, outputDir, maxCaptures, sessionTimeoutMs }) => {
     try {
@@ -315,9 +325,11 @@ server.tool(
 // Tool: stop_profiling_session
 // ---------------------------------------------------------------------------
 
-server.tool(
+server.registerTool(
   'stop_profiling_session',
-  'Stop the active profiling session and return a summary with stats and outliers.',
+  {
+    description: 'Stop the active profiling session and return a summary with stats and outliers.',
+  },
   async () => {
     try {
       if (!activeSession) {
@@ -385,14 +397,16 @@ server.tool(
 // Tool: compare_profiles
 // ---------------------------------------------------------------------------
 
-server.tool(
+server.registerTool(
   'compare_profiles',
-  'Compare two CPU profiles and show the functions with the largest hit-count differences.',
   {
-    profileA: z.string().describe('File path to the first .cpuprofile or .trace.json'),
-    profileB: z.string().describe('File path to the second .cpuprofile or .trace.json'),
-    topN: z.number().default(20).describe('Number of top differing functions to show'),
-    thread: z.string().optional().describe('Thread name to extract from trace (substring match). Required when trace has multiple profiled threads.'),
+    description: 'Compare two CPU profiles and show the functions with the largest hit-count differences.',
+    inputSchema: {
+      profileA: z.string().describe('File path to the first .cpuprofile or .trace.json'),
+      profileB: z.string().describe('File path to the second .cpuprofile or .trace.json'),
+      topN: z.number().default(20).describe('Number of top differing functions to show'),
+      thread: z.string().optional().describe('Thread name to extract from trace (substring match). Required when trace has multiple profiled threads.'),
+    },
   },
   async ({ profileA, profileB, topN, thread }) => {
     try {
