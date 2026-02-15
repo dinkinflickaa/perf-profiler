@@ -22,16 +22,30 @@ export interface Profile {
   timeDeltas?: number[];
 }
 
+// Trace event from chrome://tracing format
+export interface TraceEvent {
+  pid: number;
+  tid: number;
+  ts: number;       // microseconds
+  ph: string;       // phase: 'B', 'E', 'X', 'I', 'P', etc.
+  cat: string;      // categories
+  name: string;
+  args?: Record<string, any>;
+  dur?: number;     // microseconds (for 'X' phase)
+  id?: string;
+}
+
 // Capture metadata
 export interface CaptureInfo {
   index: number;
   label: string;
   duration: number;  // milliseconds
   overlappingInvocations: number;
-  profile: Profile;
+  profile?: Profile;
   files: {
-    cpu: string;
-    network?: string;
+    cpu?: string;
+    workerCpu?: string;
+    trace?: string;
   };
 }
 
@@ -40,7 +54,7 @@ export interface SessionState {
   id: string;
   startMark: string;
   endMark: string;
-  target: 'main' | 'worker';
+  target: 'main' | 'worker' | 'full';
   workerUrl?: string;
   captures: CaptureInfo[];
   captureIndex: number;
@@ -88,7 +102,7 @@ export interface SessionSummary {
     label: string;
     duration: number;
     overlappingInvocations: number;
-    files: { cpu: string };
+    files: { cpu?: string; workerCpu?: string; trace?: string };
   }>;
   stats: {
     cpu: StatsResult;

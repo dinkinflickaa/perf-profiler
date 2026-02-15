@@ -7,6 +7,7 @@ import { NavigationHandler } from '../instrumentation/navigation-handler.js';
 export interface CpuProfilerOptions {
   client: CDP.Client;
   sessionId?: string;
+  workerUrl?: string;
   startMark: string;
   endMark: string;
   samplingInterval?: number;
@@ -18,10 +19,12 @@ export interface CpuProfilerOptions {
 export class CpuProfiler {
   private client: CDP.Client;
   private sessionId?: string;
+  private workerUrl?: string;
   private patchCode: string;
   private navigationHandler: NavigationHandler;
   private startHandler: ((event: any) => void) | null = null;
   private endHandler: ((event: any) => void) | null = null;
+  private workerAttachHandler: ((event: any) => void) | null = null;
   private options: CpuProfilerOptions;
   private active = false;
 
@@ -29,6 +32,7 @@ export class CpuProfiler {
     this.options = options;
     this.client = options.client;
     this.sessionId = options.sessionId;
+    this.workerUrl = options.workerUrl;
     this.patchCode = generateMarkPatch(
       options.startMark,
       options.endMark,
@@ -44,16 +48,9 @@ export class CpuProfiler {
   async start(): Promise<void> {
     this.active = true;
 
-    // Enable profiler domain and set sampling interval
-    await enableProfiler(this.client, this.options.samplingInterval ?? 200, this.sessionId);
+    await this.instrumentTarget(this.sessionId);
 
-    // Enable runtime for execution context events
-    await enableRuntime(this.client, this.sessionId);
-
-    // Inject the performance.mark patch
-    await evaluate(this.client, this.patchCode, this.sessionId);
-
-    // Start navigation handler for re-injection
+    // Start navigation handler for re-injection on same-session navigations
     await this.navigationHandler.start();
 
     // Listen for profile start events
@@ -72,10 +69,10 @@ export class CpuProfiler {
       const { captureIndex, overlapCount } = parseCaptureTitle(event.title || '');
       const profile: Profile = event.profile;
 
-      // Auto-label the capture
+      // Auto-label: always run on main thread (workers have no DOM)
       let label = `invocation-${captureIndex}`;
       try {
-        const autoLabel = await evaluate(this.client, generateAutoLabelQuery(), this.sessionId);
+        const autoLabel = await evaluate(this.client, generateAutoLabelQuery());
         if (autoLabel && typeof autoLabel === 'string') {
           label = autoLabel;
         }
@@ -86,6 +83,26 @@ export class CpuProfiler {
       this.options.onCaptureEnd?.(captureIndex, profile, label, overlapCount);
     };
     this.client.on('Profiler.consoleProfileFinished' as any, this.endHandler);
+
+    // For worker targets: watch for worker re-creation (e.g. page reload)
+    if (this.workerUrl) {
+      this.workerAttachHandler = async (event: any) => {
+        if (!this.active) return;
+        const { sessionId, targetInfo } = event;
+        if ((targetInfo.type === 'worker' || targetInfo.type === 'service_worker') &&
+            targetInfo.url.includes(this.workerUrl!)) {
+          // Worker was recreated — update sessionId and re-instrument
+          this.sessionId = sessionId;
+          this.navigationHandler.updateSessionId(sessionId);
+          try {
+            await this.instrumentTarget(sessionId);
+          } catch {
+            // Worker may have been destroyed again before we could instrument
+          }
+        }
+      };
+      this.client.on('Target.attachedToTarget' as any, this.workerAttachHandler);
+    }
   }
 
   async stop(): Promise<void> {
@@ -100,11 +117,21 @@ export class CpuProfiler {
       this.client.removeListener('Profiler.consoleProfileFinished' as any, this.endHandler);
       this.endHandler = null;
     }
+    if (this.workerAttachHandler) {
+      this.client.removeListener('Target.attachedToTarget' as any, this.workerAttachHandler);
+      this.workerAttachHandler = null;
+    }
 
     try {
       await evaluate(this.client, generateRestorePatch(), this.sessionId);
     } catch {
       // Page may have navigated — patch already gone
     }
+  }
+
+  private async instrumentTarget(sessionId?: string): Promise<void> {
+    await enableProfiler(this.client, this.options.samplingInterval ?? 200, sessionId);
+    await enableRuntime(this.client, sessionId);
+    await evaluate(this.client, this.patchCode, sessionId);
   }
 }

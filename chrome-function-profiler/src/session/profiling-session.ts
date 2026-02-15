@@ -1,9 +1,10 @@
 import type CDP from 'chrome-remote-interface';
-import type { CaptureInfo, Profile, SessionState, SessionSummary, StatsResult } from '../types.js';
+import type { CaptureInfo, Profile, SessionState, SessionSummary, StatsResult, TraceEvent } from '../types.js';
 import { CpuProfiler } from '../profilers/cpu-profiler.js';
+import { TracingProfiler } from '../profilers/trace-profiler.js';
 import { WorkerManager } from '../cdp/worker-manager.js';
 import { computeStats, detectOutliers } from '../utils/stats.js';
-import { saveProfile, saveSummary } from '../utils/file-output.js';
+import { saveProfile, saveSummary, saveTrace } from '../utils/file-output.js';
 import { profileDurationMs } from '../analysis/profile-parser.js';
 import { join } from 'node:path';
 
@@ -12,7 +13,7 @@ export interface ProfilingSessionOptions {
   workerManager: WorkerManager;
   startMark: string;
   endMark: string;
-  target?: 'main' | 'worker';
+  target?: 'main' | 'worker' | 'full';
   workerUrl?: string;
   samplingInterval?: number;
   maxCaptures?: number;
@@ -22,7 +23,7 @@ export interface ProfilingSessionOptions {
 
 export class ProfilingSession {
   private options: ProfilingSessionOptions;
-  private profiler: CpuProfiler | null = null;
+  private profiler: CpuProfiler | TracingProfiler | null = null;
   private state: SessionState;
   private timeoutTimer: ReturnType<typeof setTimeout> | null = null;
   private onTimeout?: () => void;
@@ -51,39 +52,86 @@ export class ProfilingSession {
   }
 
   async start(): Promise<string> {
-    let sessionId: string | undefined;
-    if (this.state.target === 'worker') {
-      sessionId = this.options.workerManager.getSessionId(this.state.workerUrl);
-    }
-
     const outputDir = this.options.outputDir ?? './profiles/session';
 
-    this.profiler = new CpuProfiler({
-      client: this.options.client,
-      sessionId,
-      startMark: this.state.startMark,
-      endMark: this.state.endMark,
-      samplingInterval: this.options.samplingInterval ?? 200,
-      maxCaptures: this.options.maxCaptures ?? 50,
-      onCaptureStart: (idx) => {
-        this.state.captureIndex = idx;
-      },
-      onCaptureEnd: async (idx, profile, label, overlapCount) => {
-        const duration = profileDurationMs(profile);
-        const filename = `invocation-${idx}.cpuprofile`;
-        await saveProfile(profile, join(outputDir, filename));
+    if (this.state.target === 'full') {
+      this.profiler = new TracingProfiler({
+        client: this.options.client,
+        workerManager: this.options.workerManager,
+        startMark: this.state.startMark,
+        endMark: this.state.endMark,
+        maxCaptures: this.options.maxCaptures ?? 50,
+        onCaptureStart: (idx) => {
+          this.state.captureIndex = idx;
+        },
+        onCaptureEnd: async (idx, traceEvents, duration, cpuProfiles, label, overlapCount) => {
+          const traceFilename = `invocation-${idx}.trace.json`;
+          await saveTrace(traceEvents, join(outputDir, traceFilename));
 
-        const capture: CaptureInfo = {
-          index: idx,
-          label,
-          duration,
-          overlappingInvocations: overlapCount,
-          profile,
-          files: { cpu: filename },
-        };
-        this.state.captures.push(capture);
-      },
-    });
+          const files: CaptureInfo['files'] = { trace: traceFilename };
+
+          // Extract and save per-thread CPU profiles
+          const threads = [...cpuProfiles.entries()];
+          if (threads.length > 0) {
+            // Save first thread as the main cpu profile
+            const [, mainProfile] = threads[0];
+            const cpuFilename = `invocation-${idx}.cpuprofile`;
+            await saveProfile(mainProfile, join(outputDir, cpuFilename));
+            files.cpu = cpuFilename;
+
+            // Save additional threads as worker cpu profiles
+            if (threads.length > 1) {
+              const [, workerProfile] = threads[1];
+              const workerFilename = `invocation-${idx}.worker.cpuprofile`;
+              await saveProfile(workerProfile, join(outputDir, workerFilename));
+              files.workerCpu = workerFilename;
+            }
+          }
+
+          const capture: CaptureInfo = {
+            index: idx,
+            label,
+            duration,
+            overlappingInvocations: overlapCount,
+            files,
+          };
+          this.state.captures.push(capture);
+        },
+      });
+    } else {
+      let sessionId: string | undefined;
+      if (this.state.target === 'worker') {
+        sessionId = this.options.workerManager.getSessionId(this.state.workerUrl);
+      }
+
+      this.profiler = new CpuProfiler({
+        client: this.options.client,
+        sessionId,
+        workerUrl: this.state.workerUrl,
+        startMark: this.state.startMark,
+        endMark: this.state.endMark,
+        samplingInterval: this.options.samplingInterval ?? 200,
+        maxCaptures: this.options.maxCaptures ?? 50,
+        onCaptureStart: (idx) => {
+          this.state.captureIndex = idx;
+        },
+        onCaptureEnd: async (idx, profile, label, overlapCount) => {
+          const duration = profileDurationMs(profile);
+          const filename = `invocation-${idx}.cpuprofile`;
+          await saveProfile(profile, join(outputDir, filename));
+
+          const capture: CaptureInfo = {
+            index: idx,
+            label,
+            duration,
+            overlappingInvocations: overlapCount,
+            profile,
+            files: { cpu: filename },
+          };
+          this.state.captures.push(capture);
+        },
+      });
+    }
 
     await this.profiler.start();
     this.state.active = true;

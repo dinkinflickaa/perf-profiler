@@ -51,6 +51,57 @@ export function generateMarkPatch(
 })();`;
 }
 
+/**
+ * Generate JavaScript code that patches performance.mark to trigger
+ * __cfp_signal binding calls for tracing mode (full capture).
+ * Uses Runtime.addBinding on the server side to receive signals.
+ */
+export function generateTracingMarkPatch(
+  startMark: string,
+  endMark: string,
+  maxCaptures: number
+): string {
+  const escapedStart = startMark.replace(/'/g, "\\'");
+  const escapedEnd = endMark.replace(/'/g, "\\'");
+
+  return `(function() {
+  var startMark = '${escapedStart}';
+  var endMark = '${escapedEnd}';
+  var maxCaptures = ${maxCaptures};
+  var origMark = performance.mark.bind(performance);
+
+  var captureIndex = 0;
+  var depth = 0;
+  var maxDepthThisCapture = 0;
+
+  performance.__originalMark = origMark;
+
+  performance.mark = function(name, options) {
+    if (name === startMark && captureIndex < maxCaptures) {
+      depth++;
+      if (depth > maxDepthThisCapture) maxDepthThisCapture = depth;
+      if (depth === 1) {
+        captureIndex++;
+        try { __cfp_signal('start:' + captureIndex); } catch(e) {}
+      }
+    }
+
+    var result = origMark(name, options);
+
+    if (name === endMark && depth > 0) {
+      depth--;
+      if (depth === 0) {
+        var overlap = maxDepthThisCapture;
+        maxDepthThisCapture = 0;
+        try { __cfp_signal('end:' + captureIndex + ':' + overlap); } catch(e) {}
+      }
+    }
+
+    return result;
+  };
+})();`;
+}
+
 export function generateRestorePatch(): string {
   return `(function() {
   if (performance.__originalMark) {

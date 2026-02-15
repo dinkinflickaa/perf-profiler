@@ -46,6 +46,7 @@ export class NavigationHandler {
 
   setCaptureInFlight(inFlight: boolean): void { this.captureInFlight = inFlight; }
   isCaptureInFlight(): boolean { return this.captureInFlight; }
+  updateSessionId(sessionId: string): void { this.sessionId = sessionId; }
 
   stop(): void {
     this.active = false;

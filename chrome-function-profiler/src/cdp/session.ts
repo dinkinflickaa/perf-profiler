@@ -7,7 +7,7 @@ export async function sendCommand(
   sessionId?: string
 ): Promise<any> {
   if (sessionId) {
-    return client.send(method as any, { ...params, sessionId } as any);
+    return (client as any).send(method, params, sessionId);
   }
   return client.send(method as any, params as any);
 }

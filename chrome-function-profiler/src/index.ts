@@ -215,14 +215,14 @@ server.tool(
 
       const state = session.getState();
       const capture = state.captures[0];
-      const top = topFunctions(capture.profile, 10);
+      const top = capture.profile ? topFunctions(capture.profile, 10) : [];
 
       const lines: string[] = [
         `Captured profile (session ${sessionId})`,
         `  Duration: ${capture.duration.toFixed(1)}ms`,
         `  Label: ${capture.label}`,
         `  Overlapping invocations: ${capture.overlappingInvocations}`,
-        `  Saved to: ${capture.files.cpu}`,
+        `  Saved to: ${capture.files.cpu ?? 'N/A'}`,
         '',
         'Top functions by hit count:',
         ...top.map((f, i) => `  ${i + 1}. ${f.functionName} (${f.hitCount} hits) - ${f.url}:${f.lineNumber}`),
@@ -246,9 +246,9 @@ server.tool(
   {
     startMark: z.string().describe('performance.mark() name that signals the start of each capture'),
     endMark: z.string().describe('performance.mark() name that signals the end of each capture'),
-    target: z.enum(['main', 'worker']).default('main').describe('Profile main thread or a worker'),
-    workerUrl: z.string().optional().describe('URL fragment to identify the target worker'),
-    samplingInterval: z.number().default(200).describe('CPU profiler sampling interval in microseconds'),
+    target: z.enum(['main', 'worker', 'full']).default('main').describe('Profile main thread, a worker, or all threads (full trace)'),
+    workerUrl: z.string().optional().describe('URL fragment to identify the target worker (not needed for full mode)'),
+    samplingInterval: z.number().default(200).describe('CPU profiler sampling interval in microseconds (not used in full mode)'),
     outputDir: z.string().default('./profiles/session').describe('Directory for output files'),
     maxCaptures: z.number().default(50).describe('Maximum number of captures'),
     sessionTimeoutMs: z.number().default(300000).describe('Session timeout in milliseconds'),
@@ -285,15 +285,20 @@ server.tool(
 
       const sessionId = await activeSession.start();
 
+      const targetDesc = target === 'full'
+        ? 'full (all threads via tracing)'
+        : `${target}${workerUrl ? ` (worker: ${workerUrl})` : ''}`;
+
       const lines = [
         `Profiling session started: ${sessionId}`,
         `  Marks: ${startMark} -> ${endMark}`,
-        `  Target: ${target}${workerUrl ? ` (worker: ${workerUrl})` : ''}`,
+        `  Target: ${targetDesc}`,
         `  Max captures: ${maxCaptures}`,
         `  Timeout: ${sessionTimeoutMs}ms`,
         `  Output: ${outputDir}`,
         '',
         'Trigger the scenario in Chrome. Each start/end mark pair will be captured.',
+        ...(target === 'full' ? ['Each capture saves a .trace.json (all threads) + extracted .cpuprofile files.'] : []),
         'Call stop_profiling_session when done.',
       ];
 
@@ -354,6 +359,14 @@ server.tool(
           }
         } else {
           lines.push('No outliers detected.');
+        }
+
+        // Mention trace files if present
+        const hasTraceFiles = summary.captures.some(c => c.files.trace);
+        if (hasTraceFiles) {
+          lines.push('');
+          lines.push('Trace files (.trace.json) are openable in chrome://tracing or DevTools Performance panel.');
+          lines.push('Extracted .cpuprofile files can be used with compare_profiles.');
         }
       } else {
         lines.push('No captures were recorded during this session.');
