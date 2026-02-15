@@ -184,3 +184,42 @@ function resolveReactions(messages: ProcessedMessage[]): ProcessedMessage[] {
     };
   });
 }
+
+// --- Compose Preview Pipeline ---
+
+export function renderPreview(text: string): string {
+  // INEFFICIENCY 21: Full re-parse of everything on every keystroke
+  let html = parseMarkdown(text);
+  const _mentions = extractMentions(text);
+  const _emojis = decodeEmojis(text);
+
+  // INEFFICIENCY 22: Synthetic link unfurl simulation
+  const urlRegex = /https?:\/\/[^\s]+/g;
+  const urls = text.match(urlRegex) || [];
+  const unfurls: string[] = [];
+
+  for (const url of urls) {
+    const urlMetadata: Record<string, { title: string; desc: string }> = {
+      'https://example.com': { title: 'Example Domain', desc: 'This domain is for use in illustrative examples.' },
+      'https://github.com': { title: 'GitHub', desc: 'Where the world builds software.' },
+      'https://docs.example.com': { title: 'Documentation', desc: 'Read the docs for more information.' },
+      'https://api.example.com': { title: 'API Reference', desc: 'Complete API documentation and guides.' },
+      'https://blog.example.com': { title: 'Engineering Blog', desc: 'Technical articles from the team.' },
+    };
+
+    for (const [pattern, meta] of Object.entries(urlMetadata)) {
+      if (url.startsWith(pattern)) {
+        unfurls.push(
+          `<div class="unfurl"><strong>${meta.title}</strong><p>${meta.desc}</p></div>`
+        );
+        break;
+      }
+    }
+  }
+
+  if (unfurls.length > 0) {
+    html += '\n<div class="unfurls">' + unfurls.join('') + '</div>';
+  }
+
+  return html;
+}
