@@ -162,8 +162,7 @@ function nestThreads(messages: ProcessedMessage[]): ProcessedMessage[] {
   // INEFFICIENCY 14: O(n^2) thread nesting -- for each parent, filter all messages
   const parents = messages.filter(m => !m.id.includes('-reply-'));
   return parents.map(parent => {
-    if (!parent.id.includes('thread')) return parent;
-    const threadId = `thread-${parent.id.split('-msg-')[0]}-${parent.id.split('-msg-')[1]}`;
+    if (!(parent as any).threadId) return parent;
     // Filter ALL messages for each parent (should build a Map once)
     const replies = messages.filter(m => m.id.includes('-reply-') && m.id.startsWith(parent.id));
     return { ...parent, threadMessages: replies };
