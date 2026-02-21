@@ -1,4 +1,6 @@
 import { Parser } from "htmlparser2";
+import { JSDOM } from "jsdom";
+import { parseHTML } from "linkedom";
 
 // ---------------------------------------------------------------------------
 // 1. Build a realistic, complex HTML string (~5000 chars total, ~3000 text)
@@ -174,7 +176,25 @@ function textLengthExceedsWithRegexEarlyExit(html, threshold) {
 }
 
 // ---------------------------------------------------------------------------
-// 5. Benchmark harness
+// 5. Approach D – jsdom (DOM parsing without browser)
+// ---------------------------------------------------------------------------
+function textLengthExceedsWithJsdom(html, threshold) {
+  const dom = new JSDOM(html);
+  const text = dom.window.document.body.textContent || "";
+  return text.length > threshold;
+}
+
+// ---------------------------------------------------------------------------
+// 6. Approach E – linkedom (lightweight DOM parsing without browser)
+// ---------------------------------------------------------------------------
+function textLengthExceedsWithLinkedom(html, threshold) {
+  const { document } = parseHTML(html);
+  const text = document.body.textContent || "";
+  return text.length > threshold;
+}
+
+// ---------------------------------------------------------------------------
+// 7. Benchmark harness
 // ---------------------------------------------------------------------------
 function bench(label, fn, iterations) {
   // Warmup
@@ -214,6 +234,8 @@ const ITERATIONS = 10_000;
 const resultParser = textLengthExceedsWithParser(html, THRESHOLD);
 const resultRegex = textLengthExceedsWithRegex(html, THRESHOLD);
 const resultRegexEarly = textLengthExceedsWithRegexEarlyExit(html, THRESHOLD);
+const resultJsdom = textLengthExceedsWithJsdom(html, THRESHOLD);
+const resultLinkedom = textLengthExceedsWithLinkedom(html, THRESHOLD);
 
 console.log("=== HTML Text Length Benchmark ===\n");
 console.log(`HTML string length : ${html.length} characters`);
@@ -224,28 +246,39 @@ const p = new Parser({ ontext(t) { actualTextLen += t.length; } });
 p.write(html); p.end();
 console.log(`Actual text length : ${actualTextLen} characters (via htmlparser2)`);
 console.log(`Threshold          : ${THRESHOLD} characters`);
-console.log(`Exceeds threshold? : parser=${resultParser}, regex=${resultRegex}, regexEarly=${resultRegexEarly}`);
+console.log(`Exceeds threshold? : parser=${resultParser}, regex=${resultRegex}, regexEarly=${resultRegexEarly}, jsdom=${resultJsdom}, linkedom=${resultLinkedom}`);
 console.log(`Iterations         : ${ITERATIONS.toLocaleString()}\n`);
 
-if (resultParser !== resultRegex || resultParser !== resultRegexEarly) {
+const allAgree = [resultParser, resultRegex, resultRegexEarly, resultJsdom, resultLinkedom].every(r => r === resultParser);
+if (!allAgree) {
   console.error("ERROR: Results disagree between methods!");
   process.exit(1);
 }
 
+// Use fewer iterations for DOM parsers since they are much slower
+const DOM_ITERATIONS = 1_000;
+
 const r1 = bench("htmlparser2", () => textLengthExceedsWithParser(html, THRESHOLD), ITERATIONS);
 const r2 = bench("regex (strip all)", () => textLengthExceedsWithRegex(html, THRESHOLD), ITERATIONS);
 const r3 = bench("regex (early exit)", () => textLengthExceedsWithRegexEarlyExit(html, THRESHOLD), ITERATIONS);
+const r4 = bench("jsdom", () => textLengthExceedsWithJsdom(html, THRESHOLD), DOM_ITERATIONS);
+const r5 = bench("linkedom", () => textLengthExceedsWithLinkedom(html, THRESHOLD), DOM_ITERATIONS);
 
 console.log("--- Results (per call) ---\n");
 console.log(
-  `${"Method".padEnd(22)} ${"Mean".padStart(12)} ${"Median".padStart(12)} ${"P95".padStart(12)} ${"P99".padStart(12)} ${"Min".padStart(12)} ${"Max".padStart(12)}`
+  `${"Method".padEnd(22)} ${"Iterations".padStart(10)} ${"Mean".padStart(12)} ${"Median".padStart(12)} ${"P95".padStart(12)} ${"P99".padStart(12)} ${"Min".padStart(12)} ${"Max".padStart(12)}`
 );
-console.log("-".repeat(96));
-for (const r of [r1, r2, r3]) {
+console.log("-".repeat(106));
+for (const r of [r1, r2, r3, r4, r5]) {
   console.log(
-    `${r.label.padEnd(22)} ${formatUs(r.mean).padStart(12)} ${formatUs(r.median).padStart(12)} ${formatUs(r.p95).padStart(12)} ${formatUs(r.p99).padStart(12)} ${formatUs(r.min).padStart(12)} ${formatUs(r.max).padStart(12)}`
+    `${r.label.padEnd(22)} ${String(r.iterations).padStart(10)} ${formatUs(r.mean).padStart(12)} ${formatUs(r.median).padStart(12)} ${formatUs(r.p95).padStart(12)} ${formatUs(r.p99).padStart(12)} ${formatUs(r.min).padStart(12)} ${formatUs(r.max).padStart(12)}`
   );
 }
 
-const ratio = r1.mean / r2.mean;
-console.log(`\nhtmlparser2 is ${ratio.toFixed(1)}x ${ratio > 1 ? "slower" : "faster"} than regex (by mean)\n`);
+const fastest = r2; // regex is fastest baseline
+console.log(`\n--- Relative to regex (strip all) ---\n`);
+for (const r of [r1, r2, r3, r4, r5]) {
+  const ratio = r.mean / fastest.mean;
+  const label = ratio > 1 ? `${ratio.toFixed(1)}x slower` : ratio < 1 ? `${(1/ratio).toFixed(1)}x faster` : "baseline";
+  console.log(`  ${r.label.padEnd(22)} ${ratio === 1 ? "1.0x (baseline)" : label}`);
+}
