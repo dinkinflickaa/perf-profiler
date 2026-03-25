@@ -6,14 +6,39 @@ import {
   ConditionalExperiment,
   LayoutEffectWithAsyncExperiment,
 } from './LayoutEffectLoop';
+import {
+  EagerBailoutOnMount,
+  EagerBailoutOnRerender,
+  EagerBailoutUpdaterFn,
+  LayoutVsEffectComparison,
+  NoBailoutControl,
+} from './EagerBailoutTests';
 
 interface PanelProps {
   mode: 'legacy' | 'concurrent';
 }
 
-type Scenario = 'same' | 'toggle' | 'increment' | 'conditional' | 'layout-async';
+type Tab = 'eager-bailout' | 'loop-scenarios';
 
-const scenarios: { key: Scenario; label: string; danger: boolean }[] = [
+// ─── Eager Bailout Panel ─────────────────────────────────────────────────
+function EagerBailoutPanel({ mode }: PanelProps) {
+  const label = mode === 'legacy' ? 'LEGACY' : 'CONCURRENT';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <EagerBailoutOnMount label={label} mode={mode} />
+      <EagerBailoutUpdaterFn label={label} mode={mode} />
+      <LayoutVsEffectComparison label={label} mode={mode} />
+      <NoBailoutControl label={label} mode={mode} />
+      <EagerBailoutOnRerender label={label} mode={mode} />
+    </div>
+  );
+}
+
+// ─── Loop Scenarios Panel ────────────────────────────────────────────────
+type LoopScenario = 'same' | 'toggle' | 'increment' | 'conditional' | 'layout-async';
+
+const loopScenarios: { key: LoopScenario; label: string; danger: boolean }[] = [
   { key: 'same', label: '1. Same Value (bailout expected)', danger: false },
   { key: 'toggle', label: '2. Toggle (infinite → caught at 50)', danger: true },
   { key: 'increment', label: '3. Increment (infinite → caught at 50)', danger: true },
@@ -21,30 +46,14 @@ const scenarios: { key: Scenario; label: string; danger: boolean }[] = [
   { key: 'layout-async', label: '5. Layout + Async Microtask (the real danger)', danger: true },
 ];
 
-function ExperimentPanel({ mode }: PanelProps) {
-  const [active, setActive] = useState<Scenario | null>(null);
+function LoopScenariosPanel({ mode }: PanelProps) {
+  const [active, setActive] = useState<LoopScenario | null>(null);
   const label = mode === 'legacy' ? 'LEGACY' : 'CONCURRENT';
 
   return (
-    <div style={{
-      border: '2px solid',
-      borderColor: mode === 'legacy' ? '#666' : '#0af',
-      padding: 16,
-      borderRadius: 8,
-      flex: 1,
-      minWidth: 400,
-    }}>
-      <h2 style={{ margin: '0 0 8px' }}>
-        {mode === 'legacy' ? 'ReactDOM.render (Legacy)' : 'createRoot (Concurrent)'}
-      </h2>
-      <p style={{ fontSize: 12, color: '#888' }}>
-        {mode === 'legacy'
-          ? 'Sync rendering. All updates in layoutEffect are part of the same sync batch.'
-          : 'Concurrent rendering. Updates may get different lanes/priorities.'}
-      </p>
-
+    <div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
-        {scenarios.map(s => (
+        {loopScenarios.map(s => (
           <button
             key={s.key}
             onClick={() => setActive(active === s.key ? null : s.key)}
@@ -77,6 +86,65 @@ function ExperimentPanel({ mode }: PanelProps) {
   );
 }
 
+// ─── Main Panel per mode ─────────────────────────────────────────────────
+function ExperimentPanel({ mode }: PanelProps) {
+  const [tab, setTab] = useState<Tab>('eager-bailout');
+
+  return (
+    <div style={{
+      border: '2px solid',
+      borderColor: mode === 'legacy' ? '#666' : '#0af',
+      padding: 16,
+      borderRadius: 8,
+      flex: 1,
+      minWidth: 400,
+    }}>
+      <h2 style={{ margin: '0 0 8px' }}>
+        {mode === 'legacy' ? 'ReactDOM.render (Legacy)' : 'createRoot (Concurrent)'}
+      </h2>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <button
+          onClick={() => setTab('eager-bailout')}
+          style={{
+            padding: '6px 12px',
+            background: tab === 'eager-bailout' ? '#e0e7ff' : '#f5f5f5',
+            border: tab === 'eager-bailout' ? '2px solid #4f46e5' : '1px solid #ccc',
+            borderRadius: 4,
+            cursor: 'pointer',
+            fontWeight: tab === 'eager-bailout' ? 'bold' : 'normal',
+            fontFamily: 'monospace',
+            fontSize: 13,
+          }}
+        >
+          dispatchSetState Eager Bailout
+        </button>
+        <button
+          onClick={() => setTab('loop-scenarios')}
+          style={{
+            padding: '6px 12px',
+            background: tab === 'loop-scenarios' ? '#e0e7ff' : '#f5f5f5',
+            border: tab === 'loop-scenarios' ? '2px solid #4f46e5' : '1px solid #ccc',
+            borderRadius: 4,
+            cursor: 'pointer',
+            fontWeight: tab === 'loop-scenarios' ? 'bold' : 'normal',
+            fontFamily: 'monospace',
+            fontSize: 13,
+          }}
+        >
+          Loop Scenarios
+        </button>
+      </div>
+
+      {tab === 'eager-bailout' ? (
+        <EagerBailoutPanel mode={mode} />
+      ) : (
+        <LoopScenariosPanel mode={mode} />
+      )}
+    </div>
+  );
+}
+
 export function LegacyApp() {
   return <ExperimentPanel mode="legacy" />;
 }
@@ -95,25 +163,44 @@ export function AppShell() {
         background: '#fff3cd', border: '1px solid #ffc107',
         padding: 12, borderRadius: 6, marginBottom: 16,
       }}>
-        <strong>What this tests:</strong>
+        <strong>dispatchSetState eager bailout — the key check:</strong>
+        <pre style={{ margin: '8px 0', padding: 8, background: '#f8f8f8', fontSize: 12, overflow: 'auto' }}>
+{`// ReactFiberHooks.js — dispatchSetState
+if (fiber.lanes === NoLanes &&
+    (alternate === null || alternate.lanes === NoLanes)) {
+  // EAGER: compute state NOW, compare with Object.is
+  const eagerState = lastRenderedReducer(currentState, action);
+  if (is(eagerState, currentState)) {
+    enqueueConcurrentHookUpdateAndEagerlyBailout(...);
+    return; // ← NO scheduleUpdateOnFiber, NO re-render
+  }
+}
+// FALLBACK: schedule a full re-render (lazy bailout)`}
+        </pre>
         <ul style={{ margin: '6px 0', paddingLeft: 20, fontSize: 13 }}>
-          <li><strong>Bailout:</strong> setState(sameValue) in useLayoutEffect triggers a lazy bailout (2 renders, not 1) — React must re-enter the component to discover nothing changed.</li>
-          <li><strong>Nested update limit:</strong> Does React catch infinite loops (limit=50) for sync setState in useLayoutEffect?</li>
-          <li><strong>Legacy vs Concurrent:</strong> Do they differ in how nestedUpdateCount tracks layout-effect setState?</li>
-          <li><strong>Async escape:</strong> Can a Promise.resolve() microtask inside useLayoutEffect bypass the guard?</li>
+          <li>
+            <strong>Eager bailout (1 render):</strong> dispatchSetState computes the new state
+            inline, sees it's the same via Object.is, and returns without scheduling any work.
+            Component function is never called again.
+          </li>
+          <li>
+            <strong>Lazy bailout (2 renders):</strong> The lanes check fails, so React enqueues
+            the update and calls scheduleUpdateOnFiber. React re-enters the component, runs the
+            reducer, discovers the state is the same, and bails out (no commit). But the
+            component function DID execute once more.
+          </li>
+          <li>
+            <strong>Key question:</strong> During useLayoutEffect, is{' '}
+            <code>fiber.lanes === NoLanes && alternate.lanes === NoLanes</code>?
+            If <code>alternate.lanes</code> still has the triggering lane bits,
+            the eager path is skipped even though the value is the same.
+          </li>
+          <li>
+            <strong>Legacy vs Concurrent:</strong> Does <code>createRoot</code> handle
+            fiber lane clearing differently from <code>ReactDOM.render</code> during commit?
+          </li>
         </ul>
       </div>
-
-      <p style={{ color: 'red', fontWeight: 'bold', fontSize: 13 }}>
-        ⚠ Scenarios 2, 3, 5 may throw "Maximum update depth exceeded" — that's expected!
-        Scenario 5 may freeze the tab if the async microtask bypasses the guard.
-      </p>
-
-      <p style={{ fontSize: 13, color: '#555' }}>
-        <strong>Key difference:</strong> In legacy mode, useLayoutEffect setState is always
-        processed synchronously within the same commit. In concurrent mode, React may assign
-        different update lanes, potentially changing how nestedUpdateCount is tracked.
-      </p>
     </div>
   );
 }
