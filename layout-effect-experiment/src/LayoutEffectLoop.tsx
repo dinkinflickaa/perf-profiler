@@ -10,8 +10,12 @@ import React, { useState, useLayoutEffect, useRef } from 'react';
  * Scenarios tested:
  *
  * 1. SAME VALUE — setState(currentValue) inside useLayoutEffect
- *    Expected: React bails out after 1 extra render (renders twice total).
- *    Both legacy and concurrent should behave identically here.
+ *    Expected: React does a LAZY BAILOUT — renders twice total (not once).
+ *    Render #1 = initial mount. Layout effect fires setState(0).
+ *    Render #2 = React can't eagerly compare during commit phase, so it
+ *    schedules a sync re-render, enters the component, runs the reducer,
+ *    sees Object.is(0, 0) === true, and bails out (no commit, no children).
+ *    No render #3. Both legacy and concurrent should behave identically.
  *
  * 2. TOGGLING VALUE — setState(prev => !prev) inside useLayoutEffect
  *    Expected: Infinite loop. useLayoutEffect runs synchronously before
@@ -40,7 +44,10 @@ export function SameValueExperiment({ label, mode }: Props) {
 
   useLayoutEffect(() => {
     console.log(`[${label}][SameValue] useLayoutEffect — setValue(0), render #${renderCount.current}`);
-    setValue(0); // same value → should bailout
+    // Same value → lazy bailout. React can't eagerly compare during commit
+    // phase, so it schedules a re-render, enters component, runs reducer,
+    // sees Object.is(0,0)===true, then bails (no commit, no children).
+    setValue(0);
   });
 
   console.log(`[${label}][SameValue] render #${renderCount.current}, value=${value}`);

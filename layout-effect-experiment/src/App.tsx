@@ -97,7 +97,7 @@ export function AppShell() {
       }}>
         <strong>What this tests:</strong>
         <ul style={{ margin: '6px 0', paddingLeft: 20, fontSize: 13 }}>
-          <li><strong>Bailout:</strong> Does React skip re-render when setState(sameValue) is called in useLayoutEffect?</li>
+          <li><strong>Bailout:</strong> setState(sameValue) in useLayoutEffect triggers a lazy bailout (2 renders, not 1) — React must re-enter the component to discover nothing changed.</li>
           <li><strong>Nested update limit:</strong> Does React catch infinite loops (limit=50) for sync setState in useLayoutEffect?</li>
           <li><strong>Legacy vs Concurrent:</strong> Do they differ in how nestedUpdateCount tracks layout-effect setState?</li>
           <li><strong>Async escape:</strong> Can a Promise.resolve() microtask inside useLayoutEffect bypass the guard?</li>
