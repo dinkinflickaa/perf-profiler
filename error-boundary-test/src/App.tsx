@@ -6,21 +6,24 @@ export function App() {
   return (
     <div style={{ fontFamily: 'monospace', padding: 20 }}>
       <h1>Error Boundary Infinite Loop REPRO</h1>
-      <h3>React 18 — ReactDOM.render (legacy)</h3>
+      <h3>React 18 — createRoot (concurrent mode)</h3>
       <p>
-        <strong>Bug:</strong> <code>BrokenComponent</code> throws →
-        <code>BuggyErrorBoundary</code> catches it →
+        <strong>Bug:</strong> <code>BrokenComponent</code> throws →{' '}
+        <code>BuggyErrorBoundary</code> catches it →{' '}
         <code>componentDidCatch</code> calls{' '}
         <code>setTimeout(() =&gt; setState(...))</code> to retry →
-        re-renders children → <code>BrokenComponent</code> throws again → repeat <strong>forever</strong>.
+        re-renders children → throws again → repeat <strong>forever</strong>.
       </p>
       <p>
-        <strong>Why it loops:</strong> React's "Maximum update depth" guard only
-        counts synchronous nested setState calls within a single commit. <code>setTimeout</code>{' '}
-        makes each retry a new top-level update, resetting the counter.
+        <strong>Why it loops in concurrent mode:</strong> The nested update guard
+        (<code>NESTED_UPDATE_LIMIT = 50</code>) only increments when{' '}
+        <code>SyncLane</code> is in <code>remainingLanes</code> after commit.
+        In concurrent mode, <code>setTimeout</code> setState gets{' '}
+        <code>DefaultEventPriority</code> (non-sync lane) → counter resets to 0
+        every cycle → never hits 50.
       </p>
       <p style={{ color: 'red', fontWeight: 'bold' }}>
-        ⚠ WARNING: This WILL freeze your browser tab. Open DevTools console to watch.
+        WARNING: This WILL make the tab unresponsive. Open DevTools console first.
       </p>
       <hr />
 
