@@ -4,13 +4,17 @@ import { BrokenComponent } from './BrokenComponent';
 
 export function App() {
   return (
-    <div style={{ fontFamily: 'sans-serif', padding: 20 }}>
-      <h1>Error Boundary Test (React 18 - ReactDOM.render)</h1>
+    <div style={{ fontFamily: 'monospace', padding: 20 }}>
+      <h1>Error Boundary Infinite Loop Test</h1>
+      <h3>React 18 — ReactDOM.render (legacy)</h3>
       <p>
-        Scenario: <code>BrokenComponent</code> throws during render →
-        caught by <code>BuggyErrorBoundary</code> → which also throws
-        in its <code>render()</code> when trying to show the fallback.
+        <strong>Scenario:</strong> <code>BrokenComponent</code> throws →
+        <code>BuggyErrorBoundary</code> catches it →
+        <code>componentDidCatch</code> calls <code>setState</code> to clear
+        the error (attempting "recovery") → re-renders children →
+        <code>BrokenComponent</code> throws again → repeat.
       </p>
+      <p><strong>Question:</strong> Does this infinite loop? Open the console to watch.</p>
       <hr />
 
       <BuggyErrorBoundary>
