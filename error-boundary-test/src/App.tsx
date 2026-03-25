@@ -1,35 +1,71 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BuggyErrorBoundary } from './BuggyErrorBoundary';
 import { BrokenComponent } from './BrokenComponent';
+import { ApolloParent } from './ApolloParent';
 
 export function App() {
+  const [showSlotRepro, setShowSlotRepro] = useState(false);
+  const [showOriginalRepro, setShowOriginalRepro] = useState(false);
+
   return (
     <div style={{ fontFamily: 'monospace', padding: 20 }}>
-      <h1>Error Boundary Infinite Loop REPRO</h1>
+      <h1>Error Boundary Infinite Loop REPROs</h1>
       <h3>React 18 — createRoot (concurrent mode)</h3>
-      <p>
-        <strong>Bug:</strong> <code>BrokenComponent</code> throws →{' '}
-        <code>BuggyErrorBoundary</code> catches it →{' '}
-        <code>componentDidCatch</code> calls{' '}
-        <code>setTimeout(() =&gt; setState(...))</code> to retry →
-        re-renders children → throws again → repeat <strong>forever</strong>.
-      </p>
-      <p>
-        <strong>Why it loops in concurrent mode:</strong> The nested update guard
-        (<code>NESTED_UPDATE_LIMIT = 50</code>) only increments when{' '}
-        <code>SyncLane</code> is in <code>remainingLanes</code> after commit.
-        In concurrent mode, <code>setTimeout</code> setState gets{' '}
-        <code>DefaultEventPriority</code> (non-sync lane) → counter resets to 0
-        every cycle → never hits 50.
-      </p>
+
       <p style={{ color: 'red', fontWeight: 'bold' }}>
-        WARNING: This WILL make the tab unresponsive. Open DevTools console first.
+        WARNING: Clicking either button WILL make the tab unresponsive. Open DevTools console first.
       </p>
+
       <hr />
 
-      <BuggyErrorBoundary>
-        <BrokenComponent />
-      </BuggyErrorBoundary>
+      {/* ---- NEW: SlotErrorBoundary + Apollo repro ---- */}
+      <section style={{ marginBottom: 30 }}>
+        <h2>Repro: SlotErrorBoundary + Apollo correlationId loop</h2>
+        <p>
+          <strong>Bug:</strong> Apollo query resolves (microtask) &rarr; parent
+          re-renders with new <code>correlationId</code> &rarr;{' '}
+          <code>SlotErrorBoundary.render()</code> sees mismatch &rarr; calls{' '}
+          <code>reloadCallback()</code> (setState during render!) &rarr; clears
+          error &rarr; children re-mount &rarr; <code>BrokenComponent</code>{' '}
+          throws &rarr; boundary catches &rarr; Apollo fires again &rarr;{' '}
+          <strong>infinite loop</strong>.
+        </p>
+        <p>
+          <strong>Why React's guard doesn't catch it:</strong> Each Apollo
+          microtask creates a new async boundary, resetting{' '}
+          <code>nestedUpdateCount</code> to 0 every cycle.
+        </p>
+        {showSlotRepro ? (
+          <ApolloParent />
+        ) : (
+          <button onClick={() => setShowSlotRepro(true)}>
+            Trigger SlotErrorBoundary loop
+          </button>
+        )}
+      </section>
+
+      <hr />
+
+      {/* ---- Original repro ---- */}
+      <section>
+        <h2>Repro: BuggyErrorBoundary (Promise.resolve retry)</h2>
+        <p>
+          <strong>Bug:</strong> <code>BrokenComponent</code> throws &rarr;{' '}
+          <code>BuggyErrorBoundary</code> catches &rarr;{' '}
+          <code>componentDidCatch</code> calls{' '}
+          <code>Promise.resolve(() =&gt; setState(...))</code> to retry &rarr;
+          re-renders children &rarr; throws again &rarr; <strong>forever</strong>.
+        </p>
+        {showOriginalRepro ? (
+          <BuggyErrorBoundary>
+            <BrokenComponent />
+          </BuggyErrorBoundary>
+        ) : (
+          <button onClick={() => setShowOriginalRepro(true)}>
+            Trigger BuggyErrorBoundary loop
+          </button>
+        )}
+      </section>
     </div>
   );
 }
