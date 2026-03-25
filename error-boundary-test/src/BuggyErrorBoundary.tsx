@@ -29,15 +29,17 @@ export class BuggyErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, _errorInfo: ErrorInfo) {
     console.log(`[BuggyErrorBoundary] componentDidCatch #${this.state.retryCount + 1} — scheduling async retry`);
 
-    // BUG: setTimeout makes each retry a new top-level render cycle,
-    // so React's nestedUpdateCount resets and never hits the limit.
-    setTimeout(() => {
+    // BUG: Promise.resolve() (microtask) makes each retry a new top-level
+    // render cycle, so React's nestedUpdateCount resets and never hits the limit.
+    // Microtasks are even worse than setTimeout — they starve the browser's
+    // rendering pipeline since the microtask queue drains before the next paint.
+    Promise.resolve().then(() => {
       this.setState((prev) => ({
         hasError: false,
         error: null,
         retryCount: prev.retryCount + 1,
       }));
-    }, 0);
+    });
   }
 
   render() {
