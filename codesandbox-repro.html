@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>React 18 Eager Bailout Bug — Legacy vs Concurrent</title>
+  <script src="https://unpkg.com/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #1a1a2e; color: #e0e0e0; }
+    h1 { color: #fff; font-size: 18px; }
+    .panel { border: 2px solid; padding: 16px; border-radius: 8px; margin: 12px 0; }
+    .legacy { border-color: #888; }
+    .concurrent { border-color: #0af; }
+    .result { font-size: 14px; margin: 6px 0; }
+    .eager { color: #4caf50; font-weight: bold; }
+    .lazy { color: #ff9800; font-weight: bold; }
+    .info { background: #2a2a4a; padding: 12px; border-radius: 6px; margin: 12px 0; font-size: 12px; line-height: 1.6; }
+    pre { background: #0d0d1a; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 11px; color: #ccc; }
+  </style>
+</head>
+<body>
+  <h1>dispatchSetState Eager Bailout — Legacy vs Concurrent</h1>
+
+  <div class="info">
+    <strong>Bug:</strong> setState(sameValue) inside useLayoutEffect gets an
+    <strong>eager bailout (1 render)</strong> in legacy mode but a
+    <strong>lazy bailout (2 renders)</strong> in concurrent mode.<br><br>
+    <strong>Root cause:</strong> In dispatchSetState, the eager bailout checks
+    <code>fiber.lanes === NoLanes && (alternate === null || alternate.lanes === NoLanes)</code>.
+    During useLayoutEffect in concurrent mode, this check fails — residual lane bits
+    remain on the fiber or alternate that the legacy pipeline clears.
+  </div>
+
+  <pre>
+// dispatchSetState — ReactFiberHooks.js
+if (fiber.lanes === NoLanes &&
+    (alternate === null || alternate.lanes === NoLanes)) {
+  const eagerState = lastRenderedReducer(currentState, action);
+  if (is(eagerState, currentState)) {
+    enqueueConcurrentHookUpdateAndEagerlyBailout(...);
+    return; // ← NO re-render (eager bailout)
+  }
+}
+// Falls through → scheduleUpdateOnFiber → lazy bailout (extra render)
+  </pre>
+
+  <div id="root-legacy" class="panel legacy"></div>
+  <div id="root-concurrent" class="panel concurrent"></div>
+
+  <script>
+    const { createElement: h, useState, useLayoutEffect, useRef, useEffect } = React;
+
+    // ── Test Component ──────────────────────────────────────────────────
+    // Calls setState(sameValue) in useLayoutEffect.
+    // Eager bailout = 1 render. Lazy bailout = 2 renders.
+
+    function EagerBailoutTest({ mode }) {
+      const renderCount = useRef(0);
+      const settled = useRef(false);
+      const [value, setValue] = useState(42);
+      renderCount.current++;
+
+      useLayoutEffect(function () {
+        console.log(
+          '[' + mode + '] useLayoutEffect — setValue(42), render #' + renderCount.current
+        );
+        setValue(42); // same value — should eager bailout
+      });
+
+      // Use a passive effect to detect when renders have stopped
+      useEffect(function () {
+        if (!settled.current) {
+          settled.current = true;
+          console.log(
+            '[' + mode + '] SETTLED at ' + renderCount.current + ' render(s) — ' +
+            (renderCount.current === 1 ? 'EAGER bailout' : 'LAZY bailout')
+          );
+        }
+      });
+
+      console.log('[' + mode + '] render #' + renderCount.current + ', value=' + value);
+
+      var isEager = renderCount.current === 1;
+
+      return h('div', null,
+        h('h3', { style: { margin: '0 0 8px', color: mode === 'LEGACY' ? '#888' : '#0af' } },
+          mode === 'LEGACY' ? 'ReactDOM.render (Legacy)' : 'createRoot (Concurrent)'
+        ),
+        h('div', { className: 'result' },
+          'setState(42) in useLayoutEffect where state is already 42'
+        ),
+        h('div', { className: 'result' },
+          'Total renders: ', h('strong', null, renderCount.current)
+        ),
+        h('div', { className: isEager ? 'result eager' : 'result lazy' },
+          isEager
+            ? '✓ EAGER BAILOUT — dispatchSetState returned early, no re-render'
+            : '⚠ LAZY BAILOUT — lane check failed, component re-entered unnecessarily'
+        )
+      );
+    }
+
+    // ── Mount both modes ────────────────────────────────────────────────
+
+    // Legacy mode — ReactDOM.render
+    ReactDOM.render(
+      h(EagerBailoutTest, { mode: 'LEGACY' }),
+      document.getElementById('root-legacy')
+    );
+
+    // Concurrent mode — createRoot
+    ReactDOM.createRoot(document.getElementById('root-concurrent')).render(
+      h(EagerBailoutTest, { mode: 'CONCURRENT' })
+    );
+
+    console.log('\n=== React ' + React.version + ' — Eager Bailout Test ===');
+    console.log('Legacy:     expect 1 render  (eager bailout)');
+    console.log('Concurrent: expect 2 renders (lazy bailout — the bug)\n');
+  </script>
+</body>
+</html>
